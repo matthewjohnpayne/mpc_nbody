@@ -19,13 +19,21 @@ This is meant to prepare the elements for input into the n-body integrator
 
 # Import third-party packages
 # -----------------------------------------------------------------------------
-#import numpy as np
+import os
+import numpy as np
+from mpcpp import MPC_library as mpc
+from jplephem.spk import SPK
 
 # Import neighbouring packages
 # -----------------------------------------------------------------------------
 
 # Default for caching stuff using lru_cache
 # -----------------------------------------------------------------------------
+
+# Constants and stuff
+# -----------------------------------------------------------------------------
+DATA_PATH = os.path.realpath(os.path.dirname(__file__))
+jpl_kernel = SPK.open(os.path.join(DATA_PATH, "de430.bsp"))
 
 # Data classes/methods
 # -----------------------------------------------------------------------------
@@ -42,6 +50,7 @@ class ParseElements():
                 self.parse_ele220(input_file)
             if (filetype == 'fel') | (filetype == 'eq'):
                 self.parse_orbfit(input_file)
+            self.make_bary_equatorial()
             self.save_elements()
 
     def _get_Covariance_List(self, Els):
@@ -74,7 +83,7 @@ class ParseElements():
     def save_elements(self, output_file='holman_ic'):
         """Save the barycentric equatorial cartesian elements to file."""
         ### For now, just fake it!
-        self.barycentric_equatorial_cartesian_elements = _get_junk_data()
+        #self.barycentric_equatorial_cartesian_elements = _get_junk_data()
         self.tstart = 2458849.5
         # Below should be good
         outfile = open(output_file, 'w')
@@ -95,8 +104,8 @@ class ParseElements():
         Currently returns junk data.
         '''
         if felfile is None:
-            raise TypeError ("Required argument 'ele220file'"
-                             " (pos 1) not found")
+            raise TypeError("Required argument 'ele220file'"
+                            " (pos 1) not found")
         self.barycentric_ecliptic_keplarian_elements
         return 0, 0, 0, 0, 0, 0
 
@@ -114,7 +123,7 @@ class ParseElements():
 `        Heliocentric ecliptic cartesian coordinates and epoch.
         '''
         if felfile is None:
-            raise TypeError ("Required argument 'felfile' (pos 1) not found")
+            raise TypeError("Required argument 'felfile' (pos 1) not found")
 
         obj = {}
         el = open(felfile).readlines()
@@ -150,9 +159,78 @@ class ParseElements():
                             'dy_dz_helio' : dy_dz})
         self.heliocentric_ecliptic_cartesian_elements = obj
 
+    def make_bary_equatorial(self):
+        '''
+        Convert whatever elements to barycentric equatorial cartesian. 
+        '''
+        if hasattr(self, 'heliocentric_ecliptic_cartesian_elements'):
+            xyzv_hel_ecl = [self.heliocentric_ecliptic_cartesian_elements[key]
+                            for key in ['x_helio', 'y_helio', 'z_helio',
+                                        'dx_helio', 'dy_helio', 'dz_helio']]
+            xyzv_hel_equ = ecliptic_to_equatorial(xyzv_hel_ecl)
+            xyzv_bar_equ = helio_to_bary(xyzv_hel_equ, 2450000.0)
+            obj = {}
+            obj.update({'x_BaryEqu' : float(xyzv_bar_equ[0]),
+                        'y_BaryEqu' : float(xyzv_bar_equ[1]),
+                        'z_BaryEqu' : float(xyzv_bar_equ[2]),
+                        'dx_BaryEqu' : float(xyzv_bar_equ[3]),
+                        'dy_BaryEqu' : float(xyzv_bar_equ[4]),
+                        'dz_BaryEqu' : float(xyzv_bar_equ[5])})
+            self.barycentric_equatorial_cartesian_elements = obj
+        elif 0:  # if different input format
+            pass
+        else:
+            raise TypeError("There does not seem to be any valid elements")
 
 # Functions
 # -----------------------------------------------------------------------------
+
+def ecliptic_to_equatorial(input_xyz, backwards=False):
+    ''' 
+    Convert a cartesian vector from mean ecliptic to mean equatorial.
+    backwards=True converts backwards, from equatorial to ecliptic.
+    input:
+        input_xyz - np.array length 3 or 6
+        backwards - boolean
+    output:
+        output_xyz - np.array length 3 or 6
+    '''
+    direction = -1 if backwards else +1
+    if isinstance(input_xyz, list):
+        input_xyz = np.array(input_xyz)
+    rotation_matrix = mpc.rotate_matrix(mpc.Constants.ecl * direction)
+    output_xyz = np.zeros_like(input_xyz)
+    output_xyz[:3] = np.dot(rotation_matrix,
+                            input_xyz[:3].reshape(-1, 1)).flatten()
+    if len(output_xyz) == 6:
+        output_xyz[3:6] = np.dot(rotation_matrix,
+                                 input_xyz[3:6].reshape(-1, 1)).flatten()
+    return output_xyz
+
+
+def helio_to_bary(input_xyz, jd_utc, backwards=False):
+    '''
+    Convert from heliocentric to barycentic cartesian coordinates. 
+    backwards=True converts backwards, from bary to helio.
+    input:
+        input_xyz - np.array length 3 or 6
+        backwards - boolean
+    output:
+        output_xyz - np.array length 3 or 6
+    '''
+    ### Is this ECLIPTIC or EQUATORIAL???
+    direction = -1 if backwards else +1
+    if isinstance(input_xyz, list):
+        input_xyz = np.array(input_xyz)
+    EOP = mpc.EarthAndTime()
+    jd_tdb = EOP.jdTDB(jd_utc)
+    (delta, delta_vel) = jpl_kernel[0, 10].compute_and_differentiate(jd_tdb)
+    output_xyz = np.zeros_like(input_xyz)
+    output_xyz[:3] = input_xyz[:3] + delta * direction
+    if len(output_xyz) == 6:
+        output_xyz[3:6] = input_xyz[3:6] + delta_vel * direction
+    return output_xyz
+
 
 def _get_junk_data():
     """Just make some junk data for saving."""
