@@ -16,7 +16,7 @@ Mike Alexandersen & Matthew Payne
 import sys
 import os
 from filecmp import cmp
-#import numpy as np
+import numpy as np
 import pytest
 
 # Import neighbouring packages
@@ -101,9 +101,76 @@ def test_save_elements():
     assert cmp('./holman_ic', os.path.join(DATA_DIR, 'holman_ic_junk'))
 
 
-@pytest.mark.parametrize(('data_file', 'file_type', 'test_result'),
-                         (['30101.eq0_postfit', 'eq', 'holman_ic_30101'],
-                          ['30102.eq0_postfit', 'eq', 'holman_ic_30102']))
+@pytest.mark.parametrize(
+    ('input_xyz', 'jd_utc', 'expected_output_xyz'),
+    [
+     (  # Test 0: Geocenter at 2020-Mar-28 11:58:50.814329 UTC, ecliptic
+      [-9.885802285735691E-01, -1.388919024773175E-01, 1.075940262414155E-05,
+       2.118089949176372E-03, -1.710596348490784E-02, 3.057592004481207E-07],
+      2458937.000000000 - 69.185671 / 3.154e+7,
+      [-9.931015634277218E-01, -1.316625610551122E-01, 5.383001014609073E-05,
+       2.109883420735295E-03, -1.710878790443237E-02, 5.362754667958403E-07]
+     ),
+     (  # Test 1: Geocenter at 2020-Mar-28 11:58:50.814329 UTC, equatorial
+      [-9.885802285735691E-01, -1.274351089341763E-01, -5.523815439049384E-02,
+       2.118089949176372E-03, -1.569453627583853E-02, -6.804080975920086E-03],
+      2458937.000000000 - 69.185671 / 3.154e+7,
+      [-9.931015634277218E-01, -1.208194503624936E-01, -5.232297101050443E-02,
+       2.109883420735295E-03, -1.569721932419286E-02, -6.804992970946320E-03]
+     )
+    ])
+def test_helio_to_bary(input_xyz, jd_utc, expected_output_xyz):
+    '''
+    Test that heliocentric cartesian coordinates taken from Horizons
+    is converted to barycentric cartesian and still agrees with Horizons.
+    '''
+    output_xyz = parse_input.helio_to_bary(input_xyz, jd_utc)
+    exp_xyz = np.array(expected_output_xyz)
+    # Each element should be within 1% of expected:
+    error = np.abs((exp_xyz - output_xyz) / exp_xyz)
+    assert np.all(error < 0.01)
+
+
+@pytest.mark.parametrize(
+    ('input_xyz', 'jd_utc', 'expected_output_xyz'),
+    [
+     (  # Test 0: Geocenter at 2020-Mar-28 11:58:50.814329 UTC, heliocentric
+      [-9.885802285735691E-01, -1.388919024773175E-01, 1.075940262414155E-05,
+       2.118089949176372E-03, -1.710596348490784E-02, 3.057592004481207E-07],
+      2458937.000000000 - 69.185671 / 3.154e+7,
+      [-9.885802285735691E-01, -1.274351089341763E-01, -5.523815439049384E-02,
+       2.118089949176372E-03, -1.569453627583853E-02, -6.804080975920086E-03]
+     ),
+     (  # Test 1: Geocenter at 2020-Mar-28 11:58:50.814329 UTC, barycentric
+      [-9.931015634277218E-01, -1.316625610551122E-01, 5.383001014609073E-05,
+       2.109883420735295E-03, -1.710878790443237E-02, 5.362754667958403E-07],
+      2458937.000000000 - 69.185671 / 3.154e+7,
+      [-9.931015634277218E-01, -1.208194503624936E-01, -5.232297101050443E-02,
+       2.109883420735295E-03, -1.569721932419286E-02, -6.804992970946320E-03]
+     )
+    ])
+def test_ecliptic_to_equatorial(input_xyz, jd_utc, expected_output_xyz):
+    '''
+    Test that heliocentric cartesian coordinates taken from Horizons
+    is converted to barycentric cartesian and still agrees with Horizons.
+    '''
+    output_xyz = parse_input.ecliptio_to_equatorial(input_xyz)
+    # Why is the JD not used for this?
+    exp_xyz = np.array(expected_output_xyz)
+    # Each element should be within 1% of expected:
+    error = np.abs((exp_xyz - output_xyz) / exp_xyz)
+    assert np.all(error < 0.01)
+
+
+@pytest.mark.parametrize(
+    ('data_file', 'file_type', 'test_result_file'),
+    [('30101.eq0_postfit', 'eq', 'holman_ic_30101'),
+     ('30102.eq0_postfit', 'eq', 'holman_ic_30102'),
+     pytest.param('30101.ele220', 'ele220', 'holman_ic_30101',
+                  marks=pytest.mark.xfail(reason='Not implemented yet.')),
+     pytest.param('30102.ele220', 'ele220', 'holman_ic_30102',
+                  marks=pytest.mark.xfail(reason='Not implemented yet.'))
+     ])
 def test_instantiation_with_data(data_file, file_type, test_result_file):
     '''
     Test that instantiation with data functions (essentially test everything).

@@ -107,7 +107,7 @@ class ParseElements():
         if ele220file is None:
             raise TypeError("Required argument 'ele220file'"
                             " (pos 1) not found")
-        self.barycentric_ecliptic_keplarian_elements = _get_junk_data()
+        self.heliocentric_ecliptic_cartesian_elements = _get_junk_data('helio')
 
     def parse_orbfit(self, felfile=None):
         '''
@@ -195,6 +195,8 @@ def ecliptic_to_equatorial(input_xyz, backwards=False):
         backwards - boolean
     output:
         output_xyz - np.array length 3 or 6
+
+    ### Is this HELIOCENTRIC or BARYCENTRIC??? Does it matter? (probably)
     '''
     direction = -1 if backwards else +1
     if isinstance(input_xyz, list):
@@ -219,7 +221,7 @@ def helio_to_bary(input_xyz, jd_utc, backwards=False):
     output:
         output_xyz - np.array length 3 or 6
 
-    ### Is this ECLIPTIC or EQUATORIAL??? Does it matter?
+    ### Is this ECLIPTIC or EQUATORIAL??? Does it matter? (probably)
     '''
     direction = -1 if backwards else +1
     if isinstance(input_xyz, list):
@@ -234,24 +236,24 @@ def helio_to_bary(input_xyz, jd_utc, backwards=False):
     return output_xyz
 
 
-def _get_junk_data():
+def _get_junk_data(coordsystem='BaryEqu'):
     """Just make some junk data for saving."""
     junk = {}
-    junk.update({'x_BaryEqu': float(3), 'dx_BaryEqu': float(0.3),
-                 'y_BaryEqu': float(2), 'dy_BaryEqu': float(0.2),
-                 'z_BaryEqu': float(1), 'dz_BaryEqu': float(0.1)})
-    junk.update({'sigma_x_BaryEqu': 0.03, 'sigma_dx_BaryEqu': 0.003,
-                 'sigma_y_BaryEqu': 0.02, 'sigma_dy_BaryEqu': 0.002,
-                 'sigma_z_BaryEqu': 0.01, 'sigma_dz_BaryEqu': 0.001}
+    junk.update({'x_' + coordsystem: float(3), 'dx_' + coordsystem: float(0.3),
+                 'y_' + coordsystem: float(2), 'dy_' + coordsystem: float(0.2),
+                 'z_' + coordsystem: float(1), 'dz_' + coordsystem: float(0.1)})
+    junk.update({'sigma_x_' + coordsystem: 0.03, 'sigma_dx_' + coordsystem: 0.003,
+                 'sigma_y_' + coordsystem: 0.02, 'sigma_dy_' + coordsystem: 0.002,
+                 'sigma_z_' + coordsystem: 0.01, 'sigma_dz_' + coordsystem: 0.001}
                 )
-    junk.update({'x_y_BaryEqu': 0.41, 'x_z_BaryEqu': 0.42,
-                 'x_dx_BaryEqu': 0.43, 'x_dy_BaryEqu': 0.44,
-                 'x_dz_BaryEqu': 0.45, 'y_z_BaryEqu': 0.46,
-                 'y_dx_BaryEqu': 0.47, 'y_dy_BaryEqu': 0.48,
-                 'y_dz_BaryEqu': 0.49, 'z_dx_BaryEqu': 0.50,
-                 'z_dy_BaryEqu': 0.51, 'z_dz_BaryEqu': 0.52,
-                 'dx_dy_BaryEqu': 0.53, 'dx_dz_BaryEqu': 0.54,
-                 'dy_dz_BaryEqu': 0.55})
+    junk.update({'x_y_' + coordsystem: 0.41, 'x_z_' + coordsystem: 0.42,
+                 'x_dx_' + coordsystem: 0.43, 'x_dy_' + coordsystem: 0.44,
+                 'x_dz_' + coordsystem: 0.45, 'y_z_' + coordsystem: 0.46,
+                 'y_dx_' + coordsystem: 0.47, 'y_dy_' + coordsystem: 0.48,
+                 'y_dz_' + coordsystem: 0.49, 'z_dx_' + coordsystem: 0.50,
+                 'z_dy_' + coordsystem: 0.51, 'z_dz_' + coordsystem: 0.52,
+                 'dx_dy_' + coordsystem: 0.53, 'dx_dz_' + coordsystem: 0.54,
+                 'dy_dz_' + coordsystem: 0.55})
     return junk
 
 
