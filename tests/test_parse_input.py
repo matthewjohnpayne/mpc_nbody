@@ -32,27 +32,6 @@ from mpc_nbody import parse_input
 # Convenience functions
 # -----------------------------------------------------------------------------
 
-def _get_junk_data():
-    """Just make some junk data for saving."""
-    junk = {}
-    junk.update({'x_BaryEqu': float(3), 'dx_BaryEqu': float(0.3),
-                 'y_BaryEqu': float(2), 'dy_BaryEqu': float(0.2),
-                 'z_BaryEqu': float(1), 'dz_BaryEqu': float(0.1)})
-    junk.update({'sigma_x_BaryEqu': 0.03, 'sigma_dx_BaryEqu': 0.003,
-                 'sigma_y_BaryEqu': 0.02, 'sigma_dy_BaryEqu': 0.002,
-                 'sigma_z_BaryEqu': 0.01, 'sigma_dz_BaryEqu': 0.001}
-                )
-    junk.update({'x_y_BaryEqu': 0.41, 'x_z_BaryEqu': 0.42,
-                 'x_dx_BaryEqu': 0.43, 'x_dy_BaryEqu': 0.44,
-                 'x_dz_BaryEqu': 0.45, 'y_z_BaryEqu': 0.46,
-                 'y_dx_BaryEqu': 0.47, 'y_dy_BaryEqu': 0.48,
-                 'y_dz_BaryEqu': 0.49, 'z_dx_BaryEqu': 0.50,
-                 'z_dy_BaryEqu': 0.51, 'z_dz_BaryEqu': 0.52,
-                 'dx_dy_BaryEqu': 0.53, 'dx_dz_BaryEqu': 0.54,
-                 'dy_dz_BaryEqu': 0.55})
-    return junk
-
-
 # Constants & Test Data
 # -----------------------------------------------------------------------------
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'dev_data')
@@ -96,7 +75,8 @@ def test_parse_orbfit(data_file):
 def test_save_elements():
     '''Test that saving elements works correctly.'''
     P = parse_input.ParseElements()
-    P.barycentric_equatorial_cartesian_elements = _get_junk_data()
+    (P.barycentric_equatorial_cartesian_elements, P.jd_utc
+     ) = parse_input._get_junk_data('BaryEqu')
     P.save_elements()
     assert cmp('./holman_ic', os.path.join(DATA_DIR, 'holman_ic_junk'))
 
@@ -126,15 +106,16 @@ def test_helio_to_bary(input_xyz, jd_utc, expected_output_xyz):
     '''
     output_xyz = parse_input.helio_to_bary(input_xyz, jd_utc)
     exp_xyz = np.array(expected_output_xyz)
-    # Each element should be within 0.1% of expected:  ### Edit threshold
+    # Each element should be within 0.0001% of expected:  ### Edit threshold
     error = np.abs((exp_xyz - output_xyz) / exp_xyz)
     print(error)
-    assert np.all(error < 0.001)
+    assert np.all(error < 0.000001)
 
 
 # I'm not really sure whether ecliptic_to_equatorial is supposed to have
 # barycentric or heliocentric inputs, hence all the tests below.
 # It seems to not make any difference, which I find a little peculiar.
+# This should get replaced with some astroquery.jplhorizons queries.
 @pytest.mark.parametrize(
     ('input_xyz', 'jd_utc', 'expected_output_xyz'),
     [
@@ -189,10 +170,10 @@ def test_ecliptic_to_equatorial(input_xyz, jd_utc, expected_output_xyz):
     output_xyz = parse_input.ecliptic_to_equatorial(input_xyz)
     # Why is the JD not used for this?
     exp_xyz = np.array(expected_output_xyz)
-    # Each element should be within 0.1% of expected:  ### Edit threshold
+    # Each element should be within 0.0001% of expected:  ### Edit threshold
     error = np.abs((exp_xyz - output_xyz) / exp_xyz)
     print(error)
-    assert np.all(error < 0.001)
+    assert np.all(error < 0.000001)
 
 
 @pytest.mark.parametrize(
@@ -202,7 +183,9 @@ def test_ecliptic_to_equatorial(input_xyz, jd_utc, expected_output_xyz):
      pytest.param('30101.ele220', 'ele220', 'holman_ic_30101',
                   marks=pytest.mark.xfail(reason='Not implemented yet.')),
      pytest.param('30102.ele220', 'ele220', 'holman_ic_30102',
-                  marks=pytest.mark.xfail(reason='Not implemented yet.'))
+                  marks=pytest.mark.xfail(reason='Not implemented yet.')),
+     ('30101.eq0_horizons', 'eq', 'holman_ic_30101'),
+     ('30102.eq0_horizons', 'eq', 'holman_ic_30102'),
      ])
 def test_instantiation_with_data(data_file, file_type, test_result_file):
     '''

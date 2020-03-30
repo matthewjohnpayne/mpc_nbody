@@ -21,8 +21,8 @@ This is meant to prepare the elements for input into the n-body integrator
 # -----------------------------------------------------------------------------
 import os
 import numpy as np
+from astropy.time import Time
 from mpcpp import MPC_library as mpc
-from jplephem.spk import SPK
 
 # Import neighbouring packages
 # -----------------------------------------------------------------------------
@@ -33,7 +33,7 @@ from jplephem.spk import SPK
 # Constants and stuff
 # -----------------------------------------------------------------------------
 DATA_PATH = os.path.realpath(os.path.dirname(__file__))
-au_km = 149597870.700 # This is now a definition
+au_km = 149597870.700  # This is now a definition
 
 # Data classes/methods
 # -----------------------------------------------------------------------------
@@ -54,39 +54,11 @@ class ParseElements():
             self.make_bary_equatorial()
             self.save_elements()
 
-    def _get_Covariance_List(self, Els):
-        '''
-        Convenience function for reading and splitting the covariance
-        lines of an OrbFit file.
-        Not intended for user usage.
-        '''
-        ElCov = []
-        covErr = ""
-        for El in Els:
-            if El[:4] == ' COV':
-                ElCov.append(El)
-        if len(ElCov) == 7:
-            _, c11, c12, c13 = ElCov[0].split()
-            _, c14, c15, c16 = ElCov[1].split()
-            _, c22, c23, c24 = ElCov[2].split()
-            _, c25, c26, c33 = ElCov[3].split()
-            _, c34, c35, c36 = ElCov[4].split()
-            _, c44, c45, c46 = ElCov[5].split()
-            _, c55, c56, c66 = ElCov[6].split()
-        if len(ElCov) != 7:
-            c11, c12, c13, c14, c15, c16, c22 = "", "", "", "", "", "", ""
-            c23, c24, c25, c26, c33, c34, c35 = "", "", "", "", "", "", ""
-            c36, c44, c45, c46, c55, c56, c66 = "", "", "", "", "", "", ""
-            covErr = ' Empty covariance Matrix for '
-        return (covErr, c11, c12, c13, c14, c15, c16, c22, c23, c24, c25, c26,
-                c33, c34, c35, c36, c44, c45, c46, c55, c56, c66)
-
     def save_elements(self, output_file='holman_ic'):
         """
         Save the barycentric equatorial cartesian elements to file.
         """
-        self.tstart = 2458849.5  # Need to carry this through from input file
-        # Below should be good
+        self.tstart = self.jd_utc
         outfile = open(output_file, 'w')
         outfile.write(f"tstart {self.tstart:}\n")
         outfile.write("tstep +20.0\n")
@@ -96,18 +68,20 @@ class ParseElements():
         els = self.barycentric_equatorial_cartesian_elements
         for prefix in ['', 'd']:
             for el in ['x_BaryEqu', 'y_BaryEqu', 'z_BaryEqu']:
-                outfile.write(f"{els[prefix + el]:e} ")
+                outfile.write(f"{els[prefix + el]: 18.15e} ")
             outfile.write("\n")
 
     def parse_ele220(self, ele220file=None):
         '''
         Parse a file containing a single ele220 line.
         Currently returns junk data.
+        NOT ACTUALLY IMPLEMENTED YET!!!
         '''
         if ele220file is None:
             raise TypeError("Required argument 'ele220file'"
                             " (pos 1) not found")
-        self.heliocentric_ecliptic_cartesian_elements = _get_junk_data('helio')
+        (self.heliocentric_ecliptic_cartesian_elements, self.jd_utc
+         ) = _get_junk_data('helio')
 
     def parse_orbfit(self, felfile=None):
         '''
@@ -120,7 +94,7 @@ class ParseElements():
 
         Returns:
         --------
-`        Heliocentric ecliptic cartesian coordinates and epoch.
+        Heliocentric ecliptic cartesian coordinates and epoch.
         '''
         if felfile is None:
             raise TypeError("Required argument 'felfile' (pos 1) not found")
@@ -135,15 +109,17 @@ class ParseElements():
             # get Cartesian Elements
             carLoc = len(el) - 1 - list(reversed(el)).index(cart_head)
             carEls = el[carLoc:carLoc + 25]
-            (car, car_x, car_y, car_z, car_dx, car_dy, car_dz
+            (_, car_x, car_y, car_z, car_dx, car_dy, car_dz
              ) = carEls[1].split()
+            _, mjd_tdt, _ = carEls[2].split()
+            self.jd_utc = tdt_to_utc(float(mjd_tdt))
             obj.update({'x_helio': float(car_x), 'dx_helio': float(car_dx),
                         'y_helio': float(car_y), 'dy_helio': float(car_dy),
                         'z_helio': float(car_z), 'dz_helio': float(car_dz)})
             # Cartesian Covariance
             (cart_err, sig_x, x_y, x_z, x_dx, x_dy, x_dz, sig_y, y_z, y_dx,
              y_dy, y_dz, sig_z, z_dx, z_dy, z_dz, sig_dx, dx_dy, dx_dz,
-             sig_dy, dy_dz, sig_dz) = self._get_Covariance_List(carEls)
+             sig_dy, dy_dz, sig_dz) = _parse_Covariance_List(carEls)
             if cart_err == "":
                 obj.update({'sigma_x_helio': sig_x, 'sigma_dx_helio': sig_dx,
                             'sigma_y_helio': sig_y, 'sigma_dy_helio': sig_dy,
@@ -157,7 +133,10 @@ class ParseElements():
                             'z_dy_helio': z_dy, 'z_dz_helio': z_dz,
                             'dx_dy_helio': dx_dy, 'dx_dz_helio': dx_dz,
                             'dy_dz_helio': dy_dz})
-        self.heliocentric_ecliptic_cartesian_elements = obj
+            self.heliocentric_ecliptic_cartesian_elements = obj
+        else:
+            raise TypeError("There does not seem to be any valid elements "
+                            f"in the input file {felfile:}")
 
     def make_bary_equatorial(self):
         '''
@@ -167,7 +146,7 @@ class ParseElements():
             xyzv_hel_ecl = [self.heliocentric_ecliptic_cartesian_elements[key]
                             for key in ['x_helio', 'y_helio', 'z_helio',
                                         'dx_helio', 'dy_helio', 'dz_helio']]
-            xyzv_bar_ecl = ecliptic_helio2bary(xyzv_hel_ecl, 2450000.0)
+            xyzv_bar_ecl = ecliptic_helio2bary(xyzv_hel_ecl, self.jd_utc)
             xyzv_bar_equ = ecliptic_to_equatorial(xyzv_bar_ecl)
             obj = {}
             obj.update({'x_BaryEqu': float(xyzv_bar_equ[0]),
@@ -177,7 +156,7 @@ class ParseElements():
                         'dy_BaryEqu': float(xyzv_bar_equ[4]),
                         'dz_BaryEqu': float(xyzv_bar_equ[5])})
             self.barycentric_equatorial_cartesian_elements = obj
-        elif 0:  # if different input format
+        elif 0:  # if different input format (keplerian?)
             pass
         else:
             raise TypeError("There does not seem to be any valid elements")
@@ -235,15 +214,27 @@ def ecliptic_helio2bary(input_xyz, jd_utc, backwards=False):
     return output_xyz
 
 
+def tdt_to_utc(mjd_tdt):
+    """
+    Convert TDT time to UTC time, using Astropy.time
+    because life's too short for timezones and time scales.
+    """
+    return Time(mjd_tdt, format='mjd', scale='tt').utc.jd
+
+
 def _get_junk_data(coordsystem='BaryEqu'):
     """Just make some junk data for saving."""
+    junk_time = 2458849.5
     junk = {}
     junk.update({'x_' + coordsystem: float(3), 'dx_' + coordsystem: float(0.3),
                  'y_' + coordsystem: float(2), 'dy_' + coordsystem: float(0.2),
                  'z_' + coordsystem: float(1), 'dz_' + coordsystem: float(0.1)})
-    junk.update({'sigma_x_' + coordsystem: 0.03, 'sigma_dx_' + coordsystem: 0.003,
-                 'sigma_y_' + coordsystem: 0.02, 'sigma_dy_' + coordsystem: 0.002,
-                 'sigma_z_' + coordsystem: 0.01, 'sigma_dz_' + coordsystem: 0.001}
+    junk.update({'sigma_x_' + coordsystem: 0.03,
+                 'sigma_dx_' + coordsystem: 0.003,
+                 'sigma_y_' + coordsystem: 0.02,
+                 'sigma_dy_' + coordsystem: 0.002,
+                 'sigma_z_' + coordsystem: 0.01,
+                 'sigma_dz_' + coordsystem: 0.001}
                 )
     junk.update({'x_y_' + coordsystem: 0.41, 'x_z_' + coordsystem: 0.42,
                  'x_dx_' + coordsystem: 0.43, 'x_dy_' + coordsystem: 0.44,
@@ -253,7 +244,35 @@ def _get_junk_data(coordsystem='BaryEqu'):
                  'z_dy_' + coordsystem: 0.51, 'z_dz_' + coordsystem: 0.52,
                  'dx_dy_' + coordsystem: 0.53, 'dx_dz_' + coordsystem: 0.54,
                  'dy_dz_' + coordsystem: 0.55})
-    return junk
+    return junk, junk_time
+
+
+def _parse_Covariance_List(Els):
+    '''
+    Convenience function for reading and splitting the covariance
+    lines of an OrbFit file.
+    Not intended for user usage.
+    '''
+    ElCov = []
+    covErr = ""
+    for El in Els:
+        if El[:4] == ' COV':
+            ElCov.append(El)
+    if len(ElCov) == 7:
+        _, c11, c12, c13 = ElCov[0].split()
+        _, c14, c15, c16 = ElCov[1].split()
+        _, c22, c23, c24 = ElCov[2].split()
+        _, c25, c26, c33 = ElCov[3].split()
+        _, c34, c35, c36 = ElCov[4].split()
+        _, c44, c45, c46 = ElCov[5].split()
+        _, c55, c56, c66 = ElCov[6].split()
+    if len(ElCov) != 7:
+        c11, c12, c13, c14, c15, c16, c22 = "", "", "", "", "", "", ""
+        c23, c24, c25, c26, c33, c34, c35 = "", "", "", "", "", "", ""
+        c36, c44, c45, c46, c55, c56, c66 = "", "", "", "", "", "", ""
+        covErr = ' Empty covariance Matrix for '
+    return (covErr, c11, c12, c13, c14, c15, c16, c22, c23, c24, c25, c26,
+            c33, c34, c35, c36, c44, c45, c46, c55, c56, c66)
 
 
 # End
