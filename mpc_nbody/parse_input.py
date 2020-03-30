@@ -33,7 +33,7 @@ from jplephem.spk import SPK
 # Constants and stuff
 # -----------------------------------------------------------------------------
 DATA_PATH = os.path.realpath(os.path.dirname(__file__))
-jpl_kernel = SPK.open(os.path.join(DATA_PATH, "de430.bsp"))
+au_km = 149597870.700 # This is now a definition
 
 # Data classes/methods
 # -----------------------------------------------------------------------------
@@ -167,8 +167,8 @@ class ParseElements():
             xyzv_hel_ecl = [self.heliocentric_ecliptic_cartesian_elements[key]
                             for key in ['x_helio', 'y_helio', 'z_helio',
                                         'dx_helio', 'dy_helio', 'dz_helio']]
-            xyzv_hel_equ = ecliptic_to_equatorial(xyzv_hel_ecl)
-            xyzv_bar_equ = helio_to_bary(xyzv_hel_equ, 2450000.0)
+            xyzv_bar_ecl = ecliptic_helio2bary(xyzv_hel_ecl, 2450000.0)
+            xyzv_bar_equ = ecliptic_to_equatorial(xyzv_bar_ecl)
             obj = {}
             obj.update({'x_BaryEqu': float(xyzv_bar_equ[0]),
                         'y_BaryEqu': float(xyzv_bar_equ[1]),
@@ -196,7 +196,7 @@ def ecliptic_to_equatorial(input_xyz, backwards=False):
     output:
         output_xyz - np.array length 3 or 6
 
-    ### Is this HELIOCENTRIC or BARYCENTRIC??? Does it matter? (probably)
+    ### Is this HELIOCENTRIC or BARYCENTRIC??? Either way seems to work...
     '''
     direction = -1 if backwards else +1
     if isinstance(input_xyz, list):
@@ -211,7 +211,7 @@ def ecliptic_to_equatorial(input_xyz, backwards=False):
     return output_xyz
 
 
-def helio_to_bary(input_xyz, jd_utc, backwards=False):
+def ecliptic_helio2bary(input_xyz, jd_utc, backwards=False):
     '''
     Convert from heliocentric to barycentic cartesian coordinates.
     backwards=True converts backwards, from bary to helio.
@@ -221,18 +221,17 @@ def helio_to_bary(input_xyz, jd_utc, backwards=False):
     output:
         output_xyz - np.array length 3 or 6
 
-    ### Is this ECLIPTIC or EQUATORIAL??? Does it matter? (probably)
+    input_xyz MUST BE EQUATORIAL!!!
     '''
     direction = -1 if backwards else +1
     if isinstance(input_xyz, list):
         input_xyz = np.array(input_xyz)
-    EOP = mpc.EarthAndTime()
-    jd_tdb = EOP.jdTDB(jd_utc)
-    (delta, delta_vel) = jpl_kernel[0, 10].compute_and_differentiate(jd_tdb)
+    jd_tdb = mpc.EOP.jdTDB(jd_utc)
+    delta, delta_vel = mpc.jpl_kernel[0, 10].compute_and_differentiate(jd_tdb)
     output_xyz = np.zeros_like(input_xyz)
-    output_xyz[:3] = input_xyz[:3] + delta * direction
+    output_xyz[:3] = input_xyz[:3] + delta * direction / au_km
     if len(output_xyz) == 6:
-        output_xyz[3:6] = input_xyz[3:6] + delta_vel * direction
+        output_xyz[3:6] = input_xyz[3:6] + delta_vel * direction / au_km
     return output_xyz
 
 
