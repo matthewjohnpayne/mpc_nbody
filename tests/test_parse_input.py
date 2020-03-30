@@ -104,19 +104,19 @@ def test_save_elements():
 @pytest.mark.parametrize(
     ('input_xyz', 'jd_utc', 'expected_output_xyz'),
     [
-     (  # Test 0: Geocenter at 2020-Mar-28 11:58:50.814329 UTC, ecliptic
-      [-9.885802285735691E-01, -1.388919024773175E-01, 1.075940262414155E-05,
-       2.118089949176372E-03, -1.710596348490784E-02, 3.057592004481207E-07],
-      2458937.000000000 - 69.185671 / 3.154e+7,
-      [-9.931015634277218E-01, -1.316625610551122E-01, 5.383001014609073E-05,
-       2.109883420735295E-03, -1.710878790443237E-02, 5.362754667958403E-07]
-     ),
-     (  # Test 1: Geocenter at 2020-Mar-28 11:58:50.814329 UTC, equatorial
+     (  # Test 0: Geocenter at 2020-Mar-28 11:58:50.814329 UTC, equatorial
       [-9.885802285735691E-01, -1.274351089341763E-01, -5.523815439049384E-02,
        2.118089949176372E-03, -1.569453627583853E-02, -6.804080975920086E-03],
       2458937.000000000 - 69.185671 / 3.154e+7,
       [-9.931015634277218E-01, -1.208194503624936E-01, -5.232297101050443E-02,
        2.109883420735295E-03, -1.569721932419286E-02, -6.804992970946320E-03]
+     ),
+     (  # Test 1: Geocenter at 2020-May-28 11:58:50.815007 UTC, equatorial
+      [-3.904609686332465E-01, -8.581207697769445E-01, -3.719949439907977E-01,
+       1.560066535010230E-02, -6.135691724146630E-03, -2.660314977551842E-03],
+      2458998.000000000 - 69.184993 / 3.154e+7,
+      [-3.954807255875652E-01, -8.516881747767834E-01, -3.691437289321969E-01,
+       1.559254759272704E-02, -6.139028655755465E-03, -2.661507925459652E-03]
      )
     ])
 def test_helio_to_bary(input_xyz, jd_utc, expected_output_xyz):
@@ -126,11 +126,15 @@ def test_helio_to_bary(input_xyz, jd_utc, expected_output_xyz):
     '''
     output_xyz = parse_input.helio_to_bary(input_xyz, jd_utc)
     exp_xyz = np.array(expected_output_xyz)
-    # Each element should be within 1% of expected:
+    # Each element should be within 0.1% of expected:  ### Edit threshold
     error = np.abs((exp_xyz - output_xyz) / exp_xyz)
-    assert np.all(error < 0.01)
+    print(error)
+    assert np.all(error < 0.001)
 
 
+# I'm not really sure whether ecliptic_to_equatorial is supposed to have
+# barycentric or heliocentric inputs, hence all the tests below.
+# It seems to not make any difference, which I find a little peculiar.
 @pytest.mark.parametrize(
     ('input_xyz', 'jd_utc', 'expected_output_xyz'),
     [
@@ -147,6 +151,34 @@ def test_helio_to_bary(input_xyz, jd_utc, expected_output_xyz):
       2458937.000000000 - 69.185671 / 3.154e+7,
       [-9.931015634277218E-01, -1.208194503624936E-01, -5.232297101050443E-02,
        2.109883420735295E-03, -1.569721932419286E-02, -6.804992970946320E-03]
+     ),
+     (  # Test 2: Geocenter at 2020-May-28 11:58:50.815007 UTC, heliocentric
+      [-3.904609686332465E-01, -9.352815042010558E-01, 4.215095599060576E-05,
+       1.560066535010230E-02, -6.687599620944508E-03, -1.532676517666701E-07],
+      2458998.000000000 - 69.184993 / 3.154e+7,
+      [-3.904609686332465E-01, -8.581207697769445E-01, -3.719949439907977E-01,
+       1.560066535010230E-02, -6.135691724146630E-03, -2.660314977551842E-03]
+     ),
+     (  # Test 3: Geocenter at 2020-May-28 11:58:50.815007 UTC, barycentric
+      [-3.954807255875652E-01, -9.282455654588916E-01, 9.935028293246270E-05,
+       1.559254759272704E-02, -6.691135723263909E-03, 7.957920673580264E-08],
+      2458998.000000000 - 69.184993 / 3.154e+7,
+      [-3.954807255875652E-01, -8.516881747767834E-01, -3.691437289321969E-01,
+       1.559254759272704E-02, -6.139028655755465E-03, -2.661507925459652E-03]
+     ),
+     (  # Test 4: Pluto at 1989-Sep-05 11:59:03.817425 UTC, heliocentric
+      [-2.025461047950155E+01, -2.012465469047205E+01, 8.012582560787127E+00,
+       2.384906089943138E-03, -2.566190812083806E-03, -4.165830038869900E-04],
+      2447775.000000000 - 56.182575 / 3.154e+7,
+      [-2.025461047950155E+01, -2.165123198654408E+01, -6.537271365172815E-01,
+       2.384906089943138E-03, -2.188726835437898E-03, -1.402979516238514E-03]
+     ),
+     (  # Test 5: Pluto at 1989-Sep-05 11:59:03.817425 UTC, barycentric
+      [-2.025461047950155E+01, -2.012465469047205E+01, 8.012582560787127E+00,
+       2.384906089943138E-03, -2.566190812083806E-03, -4.165830038869900E-04],
+      2447775.000000000 - 56.182575 / 3.154e+7,
+      [-2.025461047950155E+01, -2.165123198654408E+01, -6.537271365172815E-01,
+       2.384906089943138E-03, -2.188726835437898E-03, -1.402979516238514E-03]
      )
     ])
 def test_ecliptic_to_equatorial(input_xyz, jd_utc, expected_output_xyz):
@@ -154,12 +186,13 @@ def test_ecliptic_to_equatorial(input_xyz, jd_utc, expected_output_xyz):
     Test that heliocentric cartesian coordinates taken from Horizons
     is converted to barycentric cartesian and still agrees with Horizons.
     '''
-    output_xyz = parse_input.ecliptio_to_equatorial(input_xyz)
+    output_xyz = parse_input.ecliptic_to_equatorial(input_xyz)
     # Why is the JD not used for this?
     exp_xyz = np.array(expected_output_xyz)
-    # Each element should be within 1% of expected:
+    # Each element should be within 0.1% of expected:  ### Edit threshold
     error = np.abs((exp_xyz - output_xyz) / exp_xyz)
-    assert np.all(error < 0.01)
+    print(error)
+    assert np.all(error < 0.001)
 
 
 @pytest.mark.parametrize(
