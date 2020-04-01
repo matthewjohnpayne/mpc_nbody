@@ -90,7 +90,7 @@ class ParseElements():
             raise TypeError("Required argument 'ele220file'"
                             " (pos 1) not found")
         (self.heliocentric_ecliptic_cartesian_elements, self.time
-         ) = _get_junk_data('helio')
+         ) = _get_junk_data('HelioEcl')
 
     def parse_orbfit(self, felfile=None):
         '''
@@ -124,26 +124,32 @@ class ParseElements():
             # Using Astropy.time for time conversion,
             # because life's too short for timezones and time scales.
             self.time = Time(float(mjd_tdt), format='mjd', scale='tt')
-            obj.update({'x_helio': float(car_x), 'dx_helio': float(car_dx),
-                        'y_helio': float(car_y), 'dy_helio': float(car_dy),
-                        'z_helio': float(car_z), 'dz_helio': float(car_dz)})
+            obj.update({'x_HelioEcl': float(car_x),
+                        'dx_HelioEcl': float(car_dx),
+                        'y_HelioEcl': float(car_y),
+                        'dy_HelioEcl': float(car_dy),
+                        'z_HelioEcl': float(car_z),
+                        'dz_HelioEcl': float(car_dz)})
             # Cartesian Covariance
             (cart_err, sig_x, x_y, x_z, x_dx, x_dy, x_dz, sig_y, y_z, y_dx,
              y_dy, y_dz, sig_z, z_dx, z_dy, z_dz, sig_dx, dx_dy, dx_dz,
              sig_dy, dy_dz, sig_dz) = _parse_Covariance_List(carEls)
             if cart_err == "":
-                obj.update({'sigma_x_helio': sig_x, 'sigma_dx_helio': sig_dx,
-                            'sigma_y_helio': sig_y, 'sigma_dy_helio': sig_dy,
-                            'sigma_z_helio': sig_z, 'sigma_dz_helio': sig_dz}
+                obj.update({'sigma_x_HelioEcl': sig_x,
+                            'sigma_dx_HelioEcl': sig_dx,
+                            'sigma_y_HelioEcl': sig_y,
+                            'sigma_dy_HelioEcl': sig_dy,
+                            'sigma_z_HelioEcl': sig_z,
+                            'sigma_dz_HelioEcl': sig_dz}
                            )
-                obj.update({'x_y_helio': x_y, 'x_z_helio': x_z,
-                            'x_dx_helio': x_dx, 'x_dy_helio': x_dy,
-                            'x_dz_helio': x_dz, 'y_z_helio': y_z,
-                            'y_dx_helio': y_dx, 'y_dy_helio': y_dy,
-                            'y_dz_helio': y_dz, 'z_dx_helio': z_dx,
-                            'z_dy_helio': z_dy, 'z_dz_helio': z_dz,
-                            'dx_dy_helio': dx_dy, 'dx_dz_helio': dx_dz,
-                            'dy_dz_helio': dy_dz})
+                obj.update({'x_y_HelioEcl': x_y, 'x_z_HelioEcl': x_z,
+                            'x_dx_HelioEcl': x_dx, 'x_dy_HelioEcl': x_dy,
+                            'x_dz_HelioEcl': x_dz, 'y_z_HelioEcl': y_z,
+                            'y_dx_HelioEcl': y_dx, 'y_dy_HelioEcl': y_dy,
+                            'y_dz_HelioEcl': y_dz, 'z_dx_HelioEcl': z_dx,
+                            'z_dy_HelioEcl': z_dy, 'z_dz_HelioEcl': z_dz,
+                            'dx_dy_HelioEcl': dx_dy, 'dx_dz_HelioEcl': dx_dz,
+                            'dy_dz_HelioEcl': dy_dz})
             self.heliocentric_ecliptic_cartesian_elements = obj
         else:
             raise TypeError("There does not seem to be any valid elements "
@@ -152,11 +158,13 @@ class ParseElements():
     def make_bary_equatorial(self):
         '''
         Convert whatever elements to barycentric equatorial cartesian.
+        Currently only heliocentric-ecliptic-cartesian input implemented.
         '''
         if hasattr(self, 'heliocentric_ecliptic_cartesian_elements'):
             xyzv_hel_ecl = [self.heliocentric_ecliptic_cartesian_elements[key]
-                            for key in ['x_helio', 'y_helio', 'z_helio',
-                                        'dx_helio', 'dy_helio', 'dz_helio']]
+                            for key in ['x_HelioEcl', 'y_HelioEcl',
+                                        'z_HelioEcl', 'dx_HelioEcl',
+                                        'dy_HelioEcl', 'dz_HelioEcl']]
             xyzv_hel_equ = ecliptic_to_equatorial(xyzv_hel_ecl)
             xyzv_bar_equ = equatorial_helio2bary(xyzv_hel_equ, self.time.tdb.jd)
             obj = {}

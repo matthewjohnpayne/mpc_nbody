@@ -59,16 +59,17 @@ def test_parse_orbfit(data_file):
 
     # check that the returned results are as expected
     assert isinstance(elements_dictionary, dict)
-    for key in ['x_helio', 'dx_helio', 'y_helio', 'dy_helio',
-                'z_helio', 'dz_helio']:
+    for key in ['x_HelioEcl', 'dx_HelioEcl', 'y_HelioEcl', 'dy_HelioEcl',
+                'z_HelioEcl', 'dz_HelioEcl']:
         assert key in elements_dictionary
         assert isinstance(elements_dictionary[key], float)
-    for key in ['sigma_x_helio', 'sigma_dx_helio', 'sigma_y_helio',
-                'sigma_dy_helio', 'sigma_z_helio', 'sigma_dz_helio',
-                'x_y_helio', 'x_z_helio', 'x_dx_helio', 'x_dy_helio',
-                'x_dz_helio', 'y_z_helio', 'y_dx_helio', 'y_dy_helio',
-                'y_dz_helio', 'z_dx_helio', 'z_dy_helio', 'z_dz_helio',
-                'dx_dy_helio', 'dx_dz_helio', 'dy_dz_helio']:
+    for key in ['sigma_x_HelioEcl', 'sigma_dx_HelioEcl', 'sigma_y_HelioEcl',
+                'sigma_dy_HelioEcl', 'sigma_z_HelioEcl', 'sigma_dz_HelioEcl',
+                'x_y_HelioEcl', 'x_z_HelioEcl', 'x_dx_HelioEcl',
+                'x_dy_HelioEcl', 'x_dz_HelioEcl', 'y_z_HelioEcl',
+                'y_dx_HelioEcl', 'y_dy_HelioEcl', 'y_dz_HelioEcl',
+                'z_dx_HelioEcl', 'z_dy_HelioEcl', 'z_dz_HelioEcl',
+                'dx_dy_HelioEcl', 'dx_dz_HelioEcl', 'dy_dz_HelioEcl']:
         assert key in elements_dictionary
         assert isinstance(elements_dictionary[key], str)
 
