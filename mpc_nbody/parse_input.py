@@ -6,7 +6,7 @@
 mpc_nbody's module for parsing OrbFit + ele220 elements
 
 Mar 2020
-Mike Alexandersen & Matthew Payne
+Mike Alexandersen & Matthew Payne & Matthew Holman
 
 This module provides functionalities to
 (a) read an OrbFit .fel/.eq file with heliocentric ecliptic cartesian els
@@ -46,19 +46,28 @@ class ParseElements():
 
     def __init__(self, input_file=None, filetype=None):
         #If input filename provided, process it:
-        if isinstance(input_file, str):
+        if isinstance(input_file, str) & isinstance(filetype, str):
             if filetype == 'ele220':
                 self.parse_ele220(input_file)
             if (filetype == 'fel') | (filetype == 'eq'):
                 self.parse_orbfit(input_file)
             self.make_bary_equatorial()
             self.save_elements()
+        else:
+            print("Keywords 'input_file' and/or 'filetype' missing; "
+                  "initiating empty object.")
 
     def save_elements(self, output_file='holman_ic'):
         """
         Save the barycentric equatorial cartesian elements to file.
+
+        Inputs:
+        -------
+        output_file : string, filename to write elements to.
+
+        The file is overwritten if it already exists.
         """
-        self.tstart = self.jd_utc
+        self.tstart = self.time.tdb.jd
         outfile = open(output_file, 'w')
         outfile.write(f"tstart {self.tstart:}\n")
         outfile.write("tstep +20.0\n")
@@ -80,7 +89,7 @@ class ParseElements():
         if ele220file is None:
             raise TypeError("Required argument 'ele220file'"
                             " (pos 1) not found")
-        (self.heliocentric_ecliptic_cartesian_elements, self.jd_utc
+        (self.heliocentric_ecliptic_cartesian_elements, self.time
          ) = _get_junk_data('helio')
 
     def parse_orbfit(self, felfile=None):
@@ -112,7 +121,9 @@ class ParseElements():
             (_, car_x, car_y, car_z, car_dx, car_dy, car_dz
              ) = carEls[1].split()
             _, mjd_tdt, _ = carEls[2].split()
-            self.jd_utc = tdt_to_utc(float(mjd_tdt))
+            # Using Astropy.time for time conversion,
+            # because life's too short for timezones and time scales.
+            self.time = Time(float(mjd_tdt), format='mjd', scale='tt')
             obj.update({'x_helio': float(car_x), 'dx_helio': float(car_dx),
                         'y_helio': float(car_y), 'dy_helio': float(car_dy),
                         'z_helio': float(car_z), 'dz_helio': float(car_dz)})
@@ -146,7 +157,7 @@ class ParseElements():
             xyzv_hel_ecl = [self.heliocentric_ecliptic_cartesian_elements[key]
                             for key in ['x_helio', 'y_helio', 'z_helio',
                                         'dx_helio', 'dy_helio', 'dz_helio']]
-            xyzv_bar_ecl = ecliptic_helio2bary(xyzv_hel_ecl, self.jd_utc)
+            xyzv_bar_ecl = ecliptic_helio2bary(xyzv_hel_ecl, self.time.tdb.jd)
             xyzv_bar_equ = ecliptic_to_equatorial(xyzv_bar_ecl)
             obj = {}
             obj.update({'x_BaryEqu': float(xyzv_bar_equ[0]),
@@ -190,7 +201,7 @@ def ecliptic_to_equatorial(input_xyz, backwards=False):
     return output_xyz
 
 
-def ecliptic_helio2bary(input_xyz, jd_utc, backwards=False):
+def ecliptic_helio2bary(input_xyz, jd_tdb, backwards=False):
     '''
     Convert from heliocentric to barycentic cartesian coordinates.
     backwards=True converts backwards, from bary to helio.
@@ -205,7 +216,6 @@ def ecliptic_helio2bary(input_xyz, jd_utc, backwards=False):
     direction = -1 if backwards else +1
     if isinstance(input_xyz, list):
         input_xyz = np.array(input_xyz)
-    jd_tdb = mpc.EOP.jdTDB(jd_utc)
     delta, delta_vel = mpc.jpl_kernel[0, 10].compute_and_differentiate(jd_tdb)
     output_xyz = np.zeros_like(input_xyz)
     output_xyz[:3] = input_xyz[:3] + delta * direction / au_km
@@ -214,17 +224,9 @@ def ecliptic_helio2bary(input_xyz, jd_utc, backwards=False):
     return output_xyz
 
 
-def tdt_to_utc(mjd_tdt):
-    """
-    Convert TDT time to UTC time, using Astropy.time
-    because life's too short for timezones and time scales.
-    """
-    return Time(mjd_tdt, format='mjd', scale='tt').utc.jd
-
-
 def _get_junk_data(coordsystem='BaryEqu'):
     """Just make some junk data for saving."""
-    junk_time = 2458849.5
+    junk_time = Time(2458849.5, format='jd', scale='tdb')
     junk = {}
     junk.update({'x_' + coordsystem: float(3), 'dx_' + coordsystem: float(0.3),
                  'y_' + coordsystem: float(2), 'dy_' + coordsystem: float(0.2),

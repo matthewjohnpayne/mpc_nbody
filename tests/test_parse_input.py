@@ -35,7 +35,8 @@ from mpc_nbody import parse_input
 # Constants & Test Data
 # -----------------------------------------------------------------------------
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'dev_data')
-test_eq_files = ['30101.eq0_postfit', '30102.eq0_postfit']
+test_eq_files = ['30101.eq0_postfit', '30101.eq0_horizons',
+                 '30102.eq0_postfit', '30101.eq0_horizons']
 
 # Tests
 # -----------------------------------------------------------------------------
