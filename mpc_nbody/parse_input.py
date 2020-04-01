@@ -157,8 +157,8 @@ class ParseElements():
             xyzv_hel_ecl = [self.heliocentric_ecliptic_cartesian_elements[key]
                             for key in ['x_helio', 'y_helio', 'z_helio',
                                         'dx_helio', 'dy_helio', 'dz_helio']]
-            xyzv_bar_ecl = ecliptic_helio2bary(xyzv_hel_ecl, self.time.tdb.jd)
-            xyzv_bar_equ = ecliptic_to_equatorial(xyzv_bar_ecl)
+            xyzv_hel_equ = ecliptic_to_equatorial(xyzv_hel_ecl)
+            xyzv_bar_equ = equatorial_helio2bary(xyzv_hel_equ, self.time.tdb.jd)
             obj = {}
             obj.update({'x_BaryEqu': float(xyzv_bar_equ[0]),
                         'y_BaryEqu': float(xyzv_bar_equ[1]),
@@ -201,7 +201,7 @@ def ecliptic_to_equatorial(input_xyz, backwards=False):
     return output_xyz
 
 
-def ecliptic_helio2bary(input_xyz, jd_tdb, backwards=False):
+def equatorial_helio2bary(input_xyz, jd_tdb, backwards=False):
     '''
     Convert from heliocentric to barycentic cartesian coordinates.
     backwards=True converts backwards, from bary to helio.

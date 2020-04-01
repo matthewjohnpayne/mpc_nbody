@@ -18,6 +18,7 @@ import os
 from filecmp import cmp
 import numpy as np
 import pytest
+from astroquery.jplhorizons import Horizons
 
 # Import neighbouring packages
 # -----------------------------------------------------------------------------
@@ -35,12 +36,10 @@ from mpc_nbody import parse_input
 # Constants & Test Data
 # -----------------------------------------------------------------------------
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'dev_data')
-test_eq_files = ['30101.eq0_postfit', '30101.eq0_horizons',
-                 '30102.eq0_postfit', '30101.eq0_horizons']
+
 
 # Tests
 # -----------------------------------------------------------------------------
-
 
 def test_instantiation():
     '''Test instantiation of the ParseElements class with no observations.'''
@@ -48,7 +47,8 @@ def test_instantiation():
 
 
 @pytest.mark.parametrize(('data_file'),
-                         ['30101.eq0_postfit', '30102.eq0_postfit'])
+                         ['30101.eq0_postfit', '30102.eq0_postfit',
+                          '30101.eq0_horizons', '30102.eq0_horizons'])
 def test_parse_orbfit(data_file):
     '''Test that OrbFit files get parsed correctly.'''
     P = parse_input.ParseElements()
@@ -83,100 +83,88 @@ def test_save_elements():
 
 
 @pytest.mark.parametrize(
-    ('input_xyz', 'jd_tdb', 'expected_output_xyz'),
+    ('target', 'jd_tdb', 'id_type'),
     [
      (  # Test 0: Geocenter at 2020-Mar-28 12:00:00 TDB, equatorial
-      [-9.885802285735691E-01, -1.274351089341763E-01, -5.523815439049384E-02,
-       2.118089949176372E-03, -1.569453627583853E-02, -6.804080975920086E-03],
-      2458937.000000000,
-      [-9.931015634277218E-01, -1.208194503624936E-01, -5.232297101050443E-02,
-       2.109883420735295E-03, -1.569721932419286E-02, -6.804992970946320E-03]
-     ),
+      'Geocenter', 2458937.000000000, 'majorbody'),
      (  # Test 1: Geocenter at 2020-May-28 12:00:00 TDB, equatorial
-      [-3.904609686332465E-01, -8.581207697769445E-01, -3.719949439907977E-01,
-       1.560066535010230E-02, -6.135691724146630E-03, -2.660314977551842E-03],
-      2458998.000000000,
-      [-3.954807255875652E-01, -8.516881747767834E-01, -3.691437289321969E-01,
-       1.559254759272704E-02, -6.139028655755465E-03, -2.661507925459652E-03]
-     )
+      'Geocenter', 2458998.000000000, 'majorbody'),
+     (  # Test 2: 30101 at 2020-Mar-28 12:00:00 TDB, equatorial
+      '30101', 2458937.000000000, 'smallbody'),
+     (  # Test 3: 30102 at 2020-Mar-28 12:00:00 TDB, equatorial
+      '30102', 2458937.000000000, 'smallbody'),
     ])
-def test_ecliptic_helio2bary(input_xyz, jd_tdb, expected_output_xyz):
+def test_equatorial_helio2bary(target, jd_tdb, id_type):
     '''
     Test that heliocentric cartesian coordinates taken from Horizons
     is converted to barycentric cartesian and still agrees with Horizons.
     '''
-    output_xyz = parse_input.ecliptic_helio2bary(input_xyz, jd_tdb)
-    exp_xyz = np.array(expected_output_xyz)
-    # Each element should be within 15m or 15m/day
-    error = np.abs(exp_xyz - output_xyz)
+    hor_in_table = Horizons(target, '500@10', epochs=jd_tdb, id_type=id_type
+                            ).vectors(refplane='earth'
+                                      )['x', 'y', 'z', 'vx', 'vy', 'vz']
+    hor_out_table = Horizons(target, '500@0', epochs=jd_tdb, id_type=id_type
+                             ).vectors(refplane='earth'
+                                       )['x', 'y', 'z', 'vx', 'vy', 'vz']
+    input_xyz = list(hor_in_table.as_array()[0])
+    expected_output_xyz = np.array(list(hor_out_table.as_array()[0]))
+    output_xyz = parse_input.equatorial_helio2bary(input_xyz, jd_tdb)
+    # Each element should be within 15mm or 15mm/day
+    error = np.abs(expected_output_xyz - output_xyz)
     print(error)
-    assert np.all(error[:3] < 1e-10) # XYZ accurate to 15 metres
-    assert np.all(error[3:6] < 1e-11) # V accurate to 1.5 metres/day
+    assert np.all(error[:3] < 1e-13)  # XYZ accurate to 15 milli-metres
+    assert np.all(error[3:6] < 1e-14)  # V accurate to 1.5 milli-metres/day
 
 
 # I'm not really sure whether ecliptic_to_equatorial is supposed to have
 # barycentric or heliocentric inputs, hence all the tests below.
 # It seems to not make any difference, which I find a little peculiar.
-# This should get replaced with some astroquery.jplhorizons queries.
 @pytest.mark.parametrize(
-    ('input_xyz', 'jd_tdb', 'expected_output_xyz'),
+    ('target', 'jd_tdb', 'id_type', 'centre'),
     [
-     (  # Test 0: Geocenter at 2020-Mar-28 12:00:00 TDB, heliocentric
-      [-9.885802285735691E-01, -1.388919024773175E-01, 1.075940262414155E-05,
-       2.118089949176372E-03, -1.710596348490784E-02, 3.057592004481207E-07],
-      2458937.000000000,
-      [-9.885802285735691E-01, -1.274351089341763E-01, -5.523815439049384E-02,
-       2.118089949176372E-03, -1.569453627583853E-02, -6.804080975920086E-03]
-     ),
-     (  # Test 1: Geocenter at 2020-Mar-28 12:00:00 TDB, barycentric
-      [-9.931015634277218E-01, -1.316625610551122E-01, 5.383001014609073E-05,
-       2.109883420735295E-03, -1.710878790443237E-02, 5.362754667958403E-07],
-      2458937.000000000,
-      [-9.931015634277218E-01, -1.208194503624936E-01, -5.232297101050443E-02,
-       2.109883420735295E-03, -1.569721932419286E-02, -6.804992970946320E-03]
-     ),
-     (  # Test 2: Geocenter at 2020-May-28 12:00:00 TDB, heliocentric
-      [-3.904609686332465E-01, -9.352815042010558E-01, 4.215095599060576E-05,
-       1.560066535010230E-02, -6.687599620944508E-03, -1.532676517666701E-07],
-      2458998.000000000,
-      [-3.904609686332465E-01, -8.581207697769445E-01, -3.719949439907977E-01,
-       1.560066535010230E-02, -6.135691724146630E-03, -2.660314977551842E-03]
-     ),
-     (  # Test 3: Geocenter at 2020-May-28 12:00:00 TDB, barycentric
-      [-3.954807255875652E-01, -9.282455654588916E-01, 9.935028293246270E-05,
-       1.559254759272704E-02, -6.691135723263909E-03, 7.957920673580264E-08],
-      2458998.000000000 - 69.184993 / 3.154e+7,
-      [-3.954807255875652E-01, -8.516881747767834E-01, -3.691437289321969E-01,
-       1.559254759272704E-02, -6.139028655755465E-03, -2.661507925459652E-03]
-     ),
-     (  # Test 4: Pluto at 1989-Sep-05 12:00:00 TDB, heliocentric
-      [-2.025461047950155E+01, -2.012465469047205E+01, 8.012582560787127E+00,
-       2.384906089943138E-03, -2.566190812083806E-03, -4.165830038869900E-04],
-      2447775.000000000 - 56.182575 / 3.154e+7,
-      [-2.025461047950155E+01, -2.165123198654408E+01, -6.537271365172815E-01,
-       2.384906089943138E-03, -2.188726835437898E-03, -1.402979516238514E-03]
-     ),
-     (  # Test 5: Pluto at 1989-Sep-05 12:00:00 TDB, barycentric
-      [-2.025461047950155E+01, -2.012465469047205E+01, 8.012582560787127E+00,
-       2.384906089943138E-03, -2.566190812083806E-03, -4.165830038869900E-04],
-      2447775.000000000,
-      [-2.025461047950155E+01, -2.165123198654408E+01, -6.537271365172815E-01,
-       2.384906089943138E-03, -2.188726835437898E-03, -1.402979516238514E-03]
-     )
+     (  # Test 0: Geocenter at 2020-Mar-28 12:00:00 TDB, helio
+      'Geocenter', 2458937.000000000, 'majorbody', '500@10'),
+     (  # Test 0: Geocenter at 2020-Mar-28 12:00:00 TDB, bary
+      'Geocenter', 2458937.000000000, 'majorbody', '500@0'),
+     (  # Test 1: Geocenter at 2020-May-28 12:00:00 TDB, helio
+      'Geocenter', 2458998.000000000, 'majorbody', '500@10'),
+     (  # Test 1: Geocenter at 2020-May-28 12:00:00 TDB, bary
+      'Geocenter', 2458998.000000000, 'majorbody', '500@0'),
+     (  # Test 2: 30101 at 2020-Mar-28 12:00:00 TDB, helio
+      '30101', 2458937.000000000, 'smallbody', '500@10'),
+     (  # Test 2: 30101 at 2020-Mar-28 12:00:00 TDB, bary
+      '30101', 2458937.000000000, 'smallbody', '500@0'),
+     (  # Test 3: 30102 at 2020-Mar-28 12:00:00 TDB, helio
+      '30102', 2458937.000000000, 'smallbody', '500@10'),
+     (  # Test 3: 30102 at 2020-Mar-28 12:00:00 TDB, bary
+      '30102', 2458937.000000000, 'smallbody', '500@0'),
+     (  # Test 4: Geocenter at 2020-Mar-28 12:00:00 TDB, helio
+      'Mercury Barycenter', 2458937.000000000, 'majorbody', '500@10'),
+     (  # Test 4: Geocenter at 2020-Mar-28 12:00:00 TDB, bary
+      'Mercury Barycenter', 2458937.000000000, 'majorbody', '500@0'),
+     (  # Test 5: Geocenter at 2020-May-28 12:00:00 TDB, helio
+      'Jupiter Barycenter', 2458998.000000000, 'majorbody', '500@10'),
+     (  # Test 5: Geocenter at 2020-May-28 12:00:00 TDB, bary
+      'Jupiter Barycenter', 2458998.000000000, 'majorbody', '500@0'),
     ])
-def test_ecliptic_to_equatorial(input_xyz, jd_tdb, expected_output_xyz):
+def test_ecliptic_to_equatorial(target, jd_tdb, id_type, centre):
     '''
     Test that heliocentric cartesian coordinates taken from Horizons
     is converted to barycentric cartesian and still agrees with Horizons.
+    jd_tdb isn't actually used for this, but it seemed useful to record it.
     '''
+    hor_table = Horizons(target, centre, epochs=jd_tdb, id_type=id_type)
+    hor_in_table = hor_table.vectors(refplane='ecliptic'
+                                     )['x', 'y', 'z', 'vx', 'vy', 'vz']
+    hor_out_table = hor_table.vectors(refplane='earth'
+                                      )['x', 'y', 'z', 'vx', 'vy', 'vz']
+    input_xyz = list(hor_in_table.as_array()[0])
+    expected_output_xyz = np.array(list(hor_out_table.as_array()[0]))
     output_xyz = parse_input.ecliptic_to_equatorial(input_xyz)
-    # Why is the JD not used for this?
-    exp_xyz = np.array(expected_output_xyz)
-    # Each element should be within 15m or 15m/day
-    error = np.abs(exp_xyz - output_xyz)
+    # Each element should be within 15mm or 1.5mm/day
+    error = np.abs(expected_output_xyz - output_xyz)
     print(error)
-    assert np.all(error[:3] < 1e-10) # XYZ accurate to 15 metres
-    assert np.all(error[3:6] < 1e-11) # V accurate to 1.5 metres/day
+    assert np.all(error[:3] < 1e-13)  # XYZ accurate to 15 milli-metres
+    assert np.all(error[3:6] < 1e-14)  # V accurate to 1.5 milli-metres/day
 
 
 @pytest.mark.parametrize(
@@ -188,37 +176,39 @@ def test_ecliptic_to_equatorial(input_xyz, jd_tdb, expected_output_xyz):
                   marks=pytest.mark.xfail(reason='Not implemented yet.')),
      ('30101.eq0_postfit', 'eq', 'holman_ic_30101'),
      ('30102.eq0_postfit', 'eq', 'holman_ic_30102'),
-     ('30101.eq0_horizons', 'eq', 'holman_ic_30101'),
-     ('30102.eq0_horizons', 'eq', 'holman_ic_30102'),
-     ])
+     ('30101.eq0_horizons', 'eq', 'holman_ic_30101_horizons'),
+     ('30102.eq0_horizons', 'eq', 'holman_ic_30102_horizons'),
+      ])
 def test_instantiation_with_data(data_file, file_type, test_result_file):
     '''
     Test that instantiation with data works (essentially test everything).
     '''
     parse_input.ParseElements(os.path.join(DATA_DIR, data_file), file_type)
     if cmp('./holman_ic', os.path.join(DATA_DIR, test_result_file)):
-        assert True
-    else:
+        assert True  # If files are identical, no further testing needed.
+    else:  # If files not identical, investigate further:
         fileA = open('./holman_ic', 'r')
         fileB = open(os.path.join(DATA_DIR, test_result_file), 'r')
-        line0A = fileA.readline()
-        line0B = fileB.readline()
-        assert line0A == line0B  # Timestamp should be identical
-        _ = [fileA.readline() for _ in range(4)]
-        _ = [fileB.readline() for _ in range(4)]
+        five_tf = []
+        for _ in range(0, 5):  # First five lines should be identical
+            lineA = fileA.readline()
+            lineB = fileB.readline()
+            five_tf.append(lineA == lineB)
         xyzA = np.array(fileA.readline().split(), dtype=float)
         xyzB = np.array(fileB.readline().split(), dtype=float)
         xyz_offset = np.abs(xyzA - xyzB)
-        xyz_tf = np.all(xyz_offset < 1e-10)  # Position accurate to 15 metres
+        xyz_tf = np.all(xyz_offset < 1e-13)  # Position accurate to 15 mm
         vA = np.array(fileA.readline().split(), dtype=float)
         vB = np.array(fileB.readline().split(), dtype=float)
         v_offset = np.abs(vA - vB)
-        v_tf = np.all(v_offset < 1e-11)  # Position accurate to 1.5 metres/day
-        if xyz_tf & v_tf:
+        v_tf = np.all(v_offset < 1e-14)  # Position accurate to 1.5 mm/day
+        if xyz_tf & v_tf & np.all(five_tf):
             print('Awesome!')
         else:
+            print(f'First five lines identical: {five_tf:}')
             print(f'Position off by: {xyz_offset:}')
             print(f'Velocity off by: {v_offset:}')
-        assert xyz_tf & v_tf
+        assert xyz_tf & v_tf & np.all(five_tf)
+
 
 # End
