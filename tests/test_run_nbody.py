@@ -70,6 +70,10 @@ def test_initialize_integration_function():
     assert isinstance(times, np.ndarray)
 
 
+# A @pytest.mark.parametrize basically defines a set of parameters that 
+# the test will loop through. 
+# Splitting the parameters into two @pytest.mark.parametrize statements
+# essentially makes it a nested loop (so all combinations are tested).
 @pytest.mark.parametrize(
     ('tstart', 'tstep', 'trange', 'geocentric', 'targets', 'id_type'),
     [
@@ -78,8 +82,14 @@ def test_initialize_integration_function():
      (2456142.5, 20.0, 60, 0, ['30101', '30102'],
       ['smallbody', 'smallbody']),
       ])
+@pytest.mark.parametrize(
+    ('threshold_xyz', 'threshold_v'),
+    [
+     (1e-10, 1e-11),  # 1e-10 au ~ 15m, 1e-11 au/day ~ 1.5 m/day
+     (5e-11, 2e-13),  # 5e-11 au ~ 7.5m, 2e-13 au/day ~ 30 mm/day
+     ])
 def test_nbody_vs_Horizons(tstart, tstep, trange, geocentric,
-                           targets, id_type):
+                           targets, id_type, threshold_xyz, threshold_v):
     '''
     Test that putting input from Horizons in gives Horizons consistent output.
     '''
@@ -99,9 +109,9 @@ def test_nbody_vs_Horizons(tstart, tstep, trange, geocentric,
         for i, targi in enumerate(targets):
             horizons_xyzv = nice_Horizons(targi, centre, times[j], id_type[i])
             mpc_xyzv = states[j, i, :]
-            # Check whether position within 15 mm, velocity within 1.5 mm/day
-            # Check whether position within 15 m, velocity within 1.5 m/day
-            error, good_tf = compare_xyzv(horizons_xyzv, mpc_xyzv, 1e-10, 1e-11)
+            # Check whether position/v within threshold.
+            error, good_tf = compare_xyzv(horizons_xyzv, mpc_xyzv,
+                                          threshold_xyz, threshold_v)
             if np.all(good_tf):
                 print('Awesome!')
             else:
