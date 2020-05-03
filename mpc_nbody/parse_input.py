@@ -44,7 +44,7 @@ class ParseElements():
     Class for parsing elements and returning them in the correct format.
     '''
 
-    def __init__(self, input_file=None, filetype=None):
+    def __init__(self, input_file=None, filetype=None, save_parsed=True):
         #If input filename provided, process it:
         if isinstance(input_file, str) & isinstance(filetype, str):
             if filetype == 'ele220':
@@ -52,7 +52,8 @@ class ParseElements():
             if (filetype == 'fel') | (filetype == 'eq'):
                 self.parse_orbfit(input_file)
             self.make_bary_equatorial()
-            self.save_elements()
+            if save_parsed:
+                self.save_elements()
         else:
             print("Keywords 'input_file' and/or 'filetype' missing; "
                   "initiating empty object.")

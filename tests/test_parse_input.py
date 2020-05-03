@@ -185,11 +185,22 @@ def test_instantiation_with_data(data_file, file_type, test_result_file):
     Test that instantiation with data works (essentially test everything).
     '''
     parse_input.ParseElements(os.path.join(DATA_DIR, data_file), file_type)
-    if cmp('./holman_ic', os.path.join(DATA_DIR, test_result_file)):
+    is_parsed_good_enough(os.path.join(DATA_DIR, test_result_file))
+
+
+# Non-test helper functions
+# -----------------------------------------------------------------------------
+
+def is_parsed_good_enough(results_file):
+    '''
+    Helper function to help test whether a just-created holman_ic file matches
+    the one in the dev_data well enough.
+    '''
+    if cmp('./holman_ic', results_file):
         assert True  # If files are identical, no further testing needed.
     else:  # If files not identical, investigate further:
         fileA = open('./holman_ic', 'r')
-        fileB = open(os.path.join(DATA_DIR, test_result_file), 'r')
+        fileB = open(results_file, 'r')
         five_tf = []
         for _ in range(0, 5):  # First five lines should be identical
             lineA = fileA.readline()
@@ -197,19 +208,31 @@ def test_instantiation_with_data(data_file, file_type, test_result_file):
             five_tf.append(lineA == lineB)
         xyzA = np.array(fileA.readline().split(), dtype=float)
         xyzB = np.array(fileB.readline().split(), dtype=float)
-        xyz_offset = np.abs(xyzA - xyzB)
-        xyz_tf = np.all(xyz_offset < 1e-13)  # Position accurate to 15 mm
         vA = np.array(fileA.readline().split(), dtype=float)
         vB = np.array(fileB.readline().split(), dtype=float)
-        v_offset = np.abs(vA - vB)
-        v_tf = np.all(v_offset < 1e-14)  # Position accurate to 1.5 mm/day
-        if xyz_tf & v_tf & np.all(five_tf):
+        error, good_tf = compare_xyzv(np.concatenate([xyzA, vA]),
+                                      np.concatenate([xyzB, vB]),
+                                      1e-13, 1e-14)  # 15 mm, 1.5 mm/day
+        if np.all(good_tf) & np.all(five_tf):
             print('Awesome!')
         else:
             print(f'First five lines identical: {five_tf:}')
-            print(f'Position off by: {xyz_offset:}')
-            print(f'Velocity off by: {v_offset:}')
-        assert xyz_tf & v_tf & np.all(five_tf)
+            print(f'Position off by: {error[:3]:}')
+            print(f'Velocity off by: {error[3:6]:}')
+        assert np.all(good_tf) & np.all(five_tf)
+
+
+def compare_xyzv(xyzv0, xyzv1, threshold_xyz, threshold_v):
+    '''
+    Calculate the difference between two sets of cartesian coordinates.
+    '''
+    if isinstance(xyzv0, list):
+        xyzv0 = np.array(xyzv0)
+    if isinstance(xyzv1, list):
+        xyzv1 = np.array(xyzv1)
+    error = xyzv0 - xyzv1
+    good_tf = np.abs(error) < np.array([threshold_xyz] * 3 + [threshold_v] * 3)
+    return error, good_tf
 
 
 # End
