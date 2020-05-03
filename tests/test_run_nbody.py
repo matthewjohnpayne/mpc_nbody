@@ -18,16 +18,20 @@ import os
 import numpy as np
 import pytest
 from astroquery.jplhorizons import Horizons
+from filecmp import cmp
 
 # Import neighbouring packages
 # -----------------------------------------------------------------------------
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-#from mpc_nbody import run_nbody
 try:  # Import ephem_forces from whereever REBX_DIR is set to live
     sys.path.append(os.environ['REBX_DIR'])
     from examples.ephem_forces import ephem_forces
 except (KeyError, ModuleNotFoundError):
     from reboundx.examples.ephem_forces import ephem_forces
+sys.path.append(os.path.dirname(os.path.dirname(
+    os.path.realpath(__file__))))
+from mpc_nbody import mpc_nbody
+from test_parse_input import is_parsed_good_enough, compare_xyzv
 
 # Default for caching stuff using lru_cache
 # -----------------------------------------------------------------------------
@@ -43,18 +47,12 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'dev_data')
 # Tests
 # -----------------------------------------------------------------------------
 
-#def test_instantiation():
-#    '''Test instantiation of  with no .'''
-#    assert isinstance(, )
-
-#def test_instantiation_with_data(data_file, file_type, test_result_file):
-
-
 def test_initialize_integration_function():
     '''
     If we put ANYTHING into the ephem_forces.integration_function,
-    will it work or crash and burn.
-    Most likely if there is a problem, it'll cause pytest to crash entirely.
+    will it work or crash and burn?
+    Most likely if there is a problem, it'll cause pytest to crash entirely,
+    so might as well start with this.
     '''
     tstart, tstep, trange = 2456184.7, 20.0, 600
     geocentric = 0
@@ -87,7 +85,7 @@ def test_initialize_integration_function():
     [
      (1e-10, 1e-11),  # 1e-10 au ~ 15m, 1e-11 au/day ~ 1.5 m/day
      (5e-11, 2e-13),  # 5e-11 au ~ 7.5m, 2e-13 au/day ~ 30 mm/day
-     ])
+      ])
 def test_nbody_vs_Horizons(tstart, tstep, trange, geocentric,
                            targets, id_type, threshold_xyz, threshold_v):
     '''
@@ -124,6 +122,48 @@ def test_nbody_vs_Horizons(tstart, tstep, trange, geocentric,
     assert n_particles_out == len(targets)
 
 
+def test_NbodySim_empty():
+    '''
+    Test the mpc_nbody.NbodySim class. Test empty initialization.
+    '''
+    assert isinstance(mpc_nbody.NbodySim(), mpc_nbody.NbodySim)
+
+
+@pytest.mark.parametrize(
+    ('data_file', 'file_type', 'holman_ic_test_file', 'nbody_test_file'),
+    [
+     pytest.param('30101.ele220', 'ele220', 'holman_ic_30101', 'nbody_30101',
+                  marks=pytest.mark.xfail(reason='Not implemented yet.')),
+     pytest.param('30102.ele220', 'ele220', 'holman_ic_30102', 'nbody_30102',
+                  marks=pytest.mark.xfail(reason='Not implemented yet.')),
+     ('30101.eq0_postfit', 'eq', 'holman_ic_30101', 'nbody_30101'),
+     ('30102.eq0_postfit', 'eq', 'holman_ic_30102', 'nbody_30102'),
+     ('30101.eq0_horizons', 'eq', 'holman_ic_30101_horizons',
+      'nbody_30101_horizons'),
+     ('30102.eq0_horizons', 'eq', 'holman_ic_30102_horizons',
+      'nbody_30102_horizons'),
+      ])
+def test_NbodySim(data_file, file_type, holman_ic_test_file, nbody_test_file):
+    '''
+    Test the mpc_nbody.NbodySim class. Test empty initialization.
+    '''
+    Sim = mpc_nbody.NbodySim(os.path.join(DATA_DIR, data_file), file_type,
+                             save_parsed=True, save_output=True)
+    is_parsed_good_enough(os.path.join(DATA_DIR, holman_ic_test_file))
+    is_nbody_output_good_enough(os.path.join(DATA_DIR, nbody_test_file))
+
+
+# Non-test helper functions
+# -----------------------------------------------------------------------------
+
+def is_nbody_output_good_enough(results_file):
+    '''
+    Helper function for determining whether the saved output from an nbody
+    integration is good enough. 
+    '''
+    pass
+
+
 def nice_Horizons(target, centre, epochs, id_type):
     '''
     Only require the inputs I actually want to vary.
@@ -133,19 +173,6 @@ def nice_Horizons(target, centre, epochs, id_type):
     horizons_vector = horizons_table.vectors(refplane='earth')
     horizons_xyzv = horizons_vector['x', 'y', 'z', 'vx', 'vy', 'vz']
     return np.array(list(horizons_xyzv.as_array()[0]))
-
-
-def compare_xyzv(xyzv0, xyzv1, threshold_xyz, threshold_v):
-    '''
-    Calculate the difference between two sets of cartesian coordinates.
-    '''
-    if isinstance(xyzv0, list):
-        xyzv0 = np.array(xyzv0)
-    if isinstance(xyzv1, list):
-        xyzv1 = np.array(xyzv1)
-    error = xyzv0 - xyzv1
-    good_tf = np.abs(error) < np.array([threshold_xyz] * 3 + [threshold_v] * 3)
-    return error, good_tf
 
 
 # End
