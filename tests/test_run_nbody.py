@@ -18,20 +18,19 @@ import os
 import numpy as np
 import pytest
 from astroquery.jplhorizons import Horizons
-from filecmp import cmp
 
 # Import neighbouring packages
 # -----------------------------------------------------------------------------
-sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from test_parse_input import is_parsed_good_enough, compare_xyzv
 try:  # Import ephem_forces from whereever REBX_DIR is set to live
     sys.path.append(os.environ['REBX_DIR'])
     from examples.ephem_forces import ephem_forces
 except (KeyError, ModuleNotFoundError):
     from reboundx.examples.ephem_forces import ephem_forces
+#sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('.'))))
 sys.path.append(os.path.dirname(os.path.dirname(
     os.path.realpath(__file__))))
 from mpc_nbody import mpc_nbody
-from test_parse_input import is_parsed_good_enough, compare_xyzv
 
 # Default for caching stuff using lru_cache
 # -----------------------------------------------------------------------------
@@ -68,8 +67,8 @@ def test_initialize_integration_function():
     assert isinstance(times, np.ndarray)
 
 
-# A @pytest.mark.parametrize basically defines a set of parameters that 
-# the test will loop through. 
+# A @pytest.mark.parametrize basically defines a set of parameters that
+# the test will loop through.
 # Splitting the parameters into two @pytest.mark.parametrize statements
 # essentially makes it a nested loop (so all combinations are tested).
 @pytest.mark.parametrize(
