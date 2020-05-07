@@ -31,6 +31,7 @@ except (KeyError, ModuleNotFoundError):
 sys.path.append(os.path.dirname(os.path.dirname(
     os.path.realpath(__file__))))
 from mpc_nbody import mpc_nbody
+from mpc_nbody.parse_input import ParseElements
 
 # Default for caching stuff using lru_cache
 # -----------------------------------------------------------------------------
@@ -69,6 +70,40 @@ def test_initialize_integration_function():
 
 # A @pytest.mark.parametrize basically defines a set of parameters that
 # the test will loop through.
+@pytest.mark.parametrize(
+    ('vectors', 'tstart', 'tstep', 'trange'),
+    [
+     (np.array([-2.093834952466475E+00, 1.000913720009255E+00,
+                4.197984954533551E-01, -4.226738336365523E-03,
+                -9.129140909705199E-03, -3.627121453928710E-03]),
+      2456117.641933589, 20, 600),
+     (ParseElements(os.path.join(DATA_DIR, '30101.eq0_horizons'), 'eq'),
+      2456117.641933589, 20, 600),
+     ([ParseElements(os.path.join(DATA_DIR, '30101.eq0_horizons'), 'eq'),
+       ParseElements(os.path.join(DATA_DIR, '30102.eq0_horizons'), 'eq')],
+      2456117.641933589, 20, 600)
+      ])
+def test_run_nbody(vectors, tstart, tstep, trange):
+    '''
+    Test whether the run_nbody function works correctly.
+    This test for now only tests that the function doesn't crash and burn,
+    not the actual output.
+    '''
+    (input_vectors, input_n_particles,
+     output_times, output_vectors, output_n_times, output_n_particles
+     ) = mpc_nbody.run_nbody(vectors, tstart, tstep, trange, geocentric=False)
+    assert isinstance(input_vectors, np.ndarray)
+    assert isinstance(input_n_particles, int)
+    assert isinstance(output_times, np.ndarray)
+    assert isinstance(output_vectors, np.ndarray)
+    assert isinstance(output_n_times, int)
+    assert isinstance(output_n_particles, int)
+    assert len(output_times) == output_n_times
+    assert output_n_particles in np.shape(output_vectors)
+    assert output_n_times in np.shape(output_vectors)
+    assert (6 in np.shape(output_vectors)) | (27 in np.shape(output_vectors))
+
+
 # Splitting the parameters into two @pytest.mark.parametrize statements
 # essentially makes it a nested loop (so all combinations are tested).
 @pytest.mark.parametrize(
@@ -97,28 +132,29 @@ def test_nbody_vs_Horizons(tstart, tstep, trange, geocentric,
         horizons_in = np.concatenate([horizons_in, nice_Horizons(targi, centre,
                                       tstart, id_type[i])])
     # Run nbody integrator
-    (times, states, n_times, n_particles_out
-     ) = ephem_forces.integration_function(tstart, tstep, trange, geocentric,
-                                           len(targets), horizons_in)
+    (input_vectors, input_n_particles,
+     output_times, output_vectors, output_n_times, output_n_particles
+     ) = mpc_nbody.run_nbody(horizons_in, tstart, tstep, trange, geocentric)
     # Check 20 time steps (or less if there are many)
-    for j in set(np.linspace(0, n_times - 1, 20).astype(int)):
+    for j in set(np.linspace(0, output_n_times - 1, 20).astype(int)):
         # Get Horizons positions for that time and compare
         for i, targi in enumerate(targets):
-            horizons_xyzv = nice_Horizons(targi, centre, times[j], id_type[i])
-            mpc_xyzv = states[j, i, :]
+            horizons_xyzv = nice_Horizons(targi, centre, output_times[j],
+                                          id_type[i])
+            mpc_xyzv = output_vectors[j, i, :]
             # Check whether position/v within threshold.
             error, good_tf = compare_xyzv(horizons_xyzv, mpc_xyzv,
                                           threshold_xyz, threshold_v)
             if np.all(good_tf):
                 print('Awesome!')
             else:
-                print(f'Time, timestep: {times[j]:}, {j:}')
+                print(f'Time, timestep: {output_times[j]:}, {j:}')
                 print(f'Horizons : {horizons_xyzv:}')
                 print(f'N-body   : {mpc_xyzv:}')
                 print(f'Position off by [au]: {error[:3]:}')
                 print(f'Velocity off by [au/day]: {error[3:6]:}')
             assert np.all(good_tf)
-    assert n_particles_out == len(targets)
+    assert output_n_particles == len(targets)
 
 
 def test_NbodySim_empty():
@@ -147,7 +183,8 @@ def test_NbodySim(data_file, file_type, holman_ic_test_file, nbody_test_file):
     Test the mpc_nbody.NbodySim class. Test empty initialization.
     '''
     Sim = mpc_nbody.NbodySim(os.path.join(DATA_DIR, data_file), file_type,
-                             save_parsed=True, save_output=True)
+                             save_parsed=True)
+    Sim(tstep=20, trange=600, save_output=True)
     is_parsed_good_enough(os.path.join(DATA_DIR, holman_ic_test_file))
     is_nbody_output_good_enough(os.path.join(DATA_DIR, nbody_test_file))
 
