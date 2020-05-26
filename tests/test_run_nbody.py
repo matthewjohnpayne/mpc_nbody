@@ -21,7 +21,6 @@ from astroquery.jplhorizons import Horizons
 
 # Import neighbouring packages
 # -----------------------------------------------------------------------------
-from test_parse_input import is_parsed_good_enough, compare_xyzv
 try:  # Import ephem_forces from whereever REBX_DIR is set to live
     sys.path.append(os.environ['REBX_DIR'])
     from examples.ephem_forces import ephem_forces
@@ -30,6 +29,7 @@ except (KeyError, ModuleNotFoundError):
 #sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('.'))))
 sys.path.append(os.path.dirname(os.path.dirname(
     os.path.realpath(__file__))))
+from tests.test_parse_input import is_parsed_good_enough, compare_xyzv
 from mpc_nbody import mpc_nbody
 from mpc_nbody.parse_input import ParseElements
 
