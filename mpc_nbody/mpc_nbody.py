@@ -74,7 +74,7 @@ class NbodySim():
         self.time_parameters = None
 
     def __call__(self, tstart=None, vectors=None, tstep=20, trange=600,
-                 save_output=None):
+                 save_output=None, verbose=False):
         if vectors is None:
             vectors = self.pparticle
             if vectors is None:
@@ -90,8 +90,8 @@ class NbodySim():
                                 "file, you must supply a 'tstart' value.")
         (self.input_vectors, self.input_n_particles, self.output_times,
          self.output_vectors, self.output_n_times, self.output_n_particles
-         ) = run_nbody(vectors, tstart, tstep, trange, self.geocentric)
-        print(f'###!!!{type(self.output_times):}!!!###')
+         ) = run_nbody(vectors, tstart, tstep, trange, self.geocentric, verbose)
+        print(f'###!!!{type(self.output_times):}!!!###' if verbose else '')
         self.time_parameters = [tstart, tstep, trange]
         if save_output is not None:
             if isinstance(save_output, str):
@@ -110,15 +110,21 @@ class NbodySim():
         The file is overwritten if it already exists.
         """
         outfile = open(output_file, 'w')
-        outfile.write(f'#Input vectors: {self.input_vectors:}')
+        outfile.write(f'#Input vectors: [')
+        for coo in self.input_vectors:
+            outfile.write(f'{coo} ')
+        outfile.write(f'\b]')
         outfile.write(f'\n#Input N_particles: {self.input_n_particles:}')
         outfile.write('\n#Start time, timestep, time range: '
                       f'{self.time_parameters:}')
         outfile.write(f'\n#Output N_times: {self.output_n_times:}')
         outfile.write(f'\n#Output N_particles: {self.output_n_particles:}')
-        outfile.write('\nTime ')
+        outfile.write('\n#')
+        outfile.write('\n#Time               ')
         for j in np.arange(self.output_n_particles):
-            outfile.write('\nx y z dx dy dz ')
+            outfile.write('x                  y                  '
+                          'z                   dx                  '
+                          '  dy                    dz                  ')
         for i, timei in enumerate(self.output_times):
             outfile.write(f'\n{timei:} ')
             for j in np.arange(self.output_n_particles):
@@ -130,7 +136,8 @@ class NbodySim():
 # -----------------------------------------------------------------------------
 
 
-def run_nbody(input_vectors, tstart, tstep, trange, geocentric=False):
+def run_nbody(input_vectors, tstart, tstep, trange, geocentric=False,
+              verbose=False):
     '''
     Run the nbody integrator with the parsed input.
 
@@ -155,7 +162,7 @@ def run_nbody(input_vectors, tstart, tstep, trange, geocentric=False):
     n_particles_out = integer, number of output particles (different why?)
     '''
     # First get input (3 types allowed) into a useful format:
-    reparsed_input, n_particles = _fix_input(input_vectors)
+    reparsed_input, n_particles = _fix_input(input_vectors, verbose)
     # Now run the nbody integrator:
     (times, output_vectors, n_times, n_particles_out
      ) = integration_function(tstart, tstep, trange, geocentric,
@@ -164,7 +171,7 @@ def run_nbody(input_vectors, tstart, tstep, trange, geocentric=False):
            n_times, n_particles_out)
 
 
-def _fix_input(pinput):
+def _fix_input(pinput, verbose=False):
     '''
     Convert the input to a useful format.
 
@@ -180,15 +187,15 @@ def _fix_input(pinput):
     len(reparsed)//6 = integer, number of particles.
     '''
     if isinstance(pinput, parse_input.ParseElements):
-        print('###!!!ONE!!!###')
+        print('###!!!ONE!!!###' if verbose else '')
         els = pinput.barycentric_equatorial_cartesian_elements
         reparsed = np.array([els[i] for i in ['x_BaryEqu', 'y_BaryEqu',
                                               'z_BaryEqu', 'dx_BaryEqu',
                                               'dy_BaryEqu', 'dz_BaryEqu']])
     elif isinstance(pinput, list):
-        print('###!!!TWO!!!###')
+        print('###!!!TWO!!!###' if verbose else '')
         if isinstance(pinput[0], parse_input.ParseElements):
-            print('###!!!TWO.5!!!###')
+            print('###!!!TWO.5!!!###' if verbose else '')
             reparsed = []
             for particle in pinput:
                 els = particle.barycentric_equatorial_cartesian_elements
@@ -196,9 +203,11 @@ def _fix_input(pinput):
                      for i in ['x_BaryEqu', 'y_BaryEqu', 'z_BaryEqu',
                                'dx_BaryEqu', 'dy_BaryEqu', 'dz_BaryEqu']]
             reparsed = np.array(reparsed)
+        else:
+            reparsed = np.array(pinput)
     elif isinstance(pinput, np.ndarray):
         if (len(np.shape(pinput)) == 1) & (len(pinput) % 6 == 0):
-            print('###!!!THREE!!!###')
+            print('###!!!THREE!!!###' if verbose else '')
             reparsed = pinput
     else:
         raise(TypeError('"pinput" not understood.\n'
