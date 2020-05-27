@@ -155,6 +155,7 @@ def test_nbody_vs_Horizons(tstart, tstep, trange, geocentric,
                 print(f'Velocity off by [au/day]: {error[3:6]:}')
             assert np.all(good_tf)
     assert output_n_particles == len(targets)
+    ### This should get refactored to use is_nbody_output_good_enough !!!
 
 
 def test_NbodySim_empty():
@@ -171,8 +172,6 @@ def test_NbodySim_empty():
                   marks=pytest.mark.xfail(reason='Not implemented yet.')),
      pytest.param('30102.ele220', 'ele220', 'holman_ic_30102', 'nbody_30102',
                   marks=pytest.mark.xfail(reason='Not implemented yet.')),
-     ('30101.eq0_postfit', 'eq', 'holman_ic_30101', 'nbody_30101'),
-     ('30102.eq0_postfit', 'eq', 'holman_ic_30102', 'nbody_30102'),
      ('30101.eq0_horizons', 'eq', 'holman_ic_30101_horizons',
       'nbody_30101_horizons'),
      ('30102.eq0_horizons', 'eq', 'holman_ic_30102_horizons',
@@ -186,18 +185,37 @@ def test_NbodySim(data_file, file_type, holman_ic_test_file, nbody_test_file):
                              save_parsed=True)
     Sim(tstep=20, trange=600, save_output=True)
     is_parsed_good_enough(os.path.join(DATA_DIR, holman_ic_test_file))
-    is_nbody_output_good_enough(os.path.join(DATA_DIR, nbody_test_file))
+    is_nbody_output_good_enough(Sim.output_times, Sim.output_vectors,
+                                target=data_file[:5])
 
 
 # Non-test helper functions
 # -----------------------------------------------------------------------------
 
-def is_nbody_output_good_enough(results_file):
+def is_nbody_output_good_enough(times, data, target='30102'):
     '''
     Helper function for determining whether the saved output from an nbody
     integration is good enough. 
     '''
-    pass
+    # Check 20 timesteps (or less if there are many)
+    some_times = np.linspace(0, len(times) - 1, 20).astype(int)
+    for j in set(some_times):
+        # Get Horizons positions for that time and compare
+        horizons_xyzv = nice_Horizons(target, '500@0', times[j],
+                                      'smallbody')
+        mpc_xyzv = data[j, 0, :]
+        # Check whether position/v within threshold.
+        error, good_tf = compare_xyzv(horizons_xyzv, mpc_xyzv,
+                                      5e-11, 2e-13)  # 7.5m, 30 mm/day
+        if np.all(good_tf):
+            print('Awesome!')
+        else:
+            print(f'Time, timestep: {times[j]:}, {j:}')
+            print(f'Horizons : {horizons_xyzv:}')
+            print(f'N-body   : {mpc_xyzv:}')
+            print(f'Position off by [au]: {error[:3]:}')
+            print(f'Velocity off by [au/day]: {error[3:6]:}')
+        assert np.all(good_tf)
 
 
 def nice_Horizons(target, centre, epochs, id_type):
